@@ -269,6 +269,7 @@ class MenuActionSheetView: UIView, MenuActionViewDelegate {
 
     private let actionStackView: UIStackView
     private var actions: [MenuAction]
+    private var actionViews: [MenuActionView]
     weak var delegate: MenuActionSheetDelegate?
 
     override var bounds: CGRect {
@@ -288,29 +289,90 @@ class MenuActionSheetView: UIView, MenuActionViewDelegate {
         actionStackView.spacing = CGHairlineWidth()
 
         actions = []
+        actionViews = []
 
         super.init(frame: frame)
 
         backgroundColor = UIColor.ows_light10
         addSubview(actionStackView)
-        actionStackView.ows_autoPinToSuperviewEdges()
+        actionStackView.autoPinEdgesToSuperviewEdges()
 
         self.clipsToBounds = true
 
-        // Prevent panning from percolating to the superview, which would
-        // cause us to dismiss
-        let panGestureSink = UIPanGestureRecognizer(target: nil, action: nil)
-        self.addGestureRecognizer(panGestureSink)
+        let panGesture: UIPanGestureRecognizer = UIPanGestureRecognizer(target: self, action: #selector(didPan(gesture:)))
+        self.addGestureRecognizer(panGesture)
     }
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("not implemented")
     }
 
+    @objc
+    public func didPan(gesture: UIPanGestureRecognizer) {
+        switch gesture.state {
+        case .possible:
+            break
+        case .began:
+            let location = gesture.location(in: self)
+            highlightActionView(location: location, fromView: self)
+        case .changed:
+            let location = gesture.location(in: self)
+            highlightActionView(location: location, fromView: self)
+        case .ended:
+            Logger.debug("\(logTag) in \(#function) ended")
+            let location = gesture.location(in: self)
+            selectActionView(location: location, fromView: self)
+        case .cancelled:
+            Logger.debug("\(logTag) in \(#function) canceled")
+            unhighlightAllActionViews()
+        case .failed:
+            Logger.debug("\(logTag) in \(#function) failed")
+            unhighlightAllActionViews()
+        }
+    }
+
+    public func unhighlightAllActionViews() {
+        for actionView in actionViews {
+            actionView.isHighlighted = false
+        }
+    }
+
+    public func actionView(touchedBy touchPoint: CGPoint, fromView: UIView) -> MenuActionView? {
+        for actionView in actionViews {
+            let convertedPoint = actionView.convert(touchPoint, from: fromView)
+            if actionView.point(inside: convertedPoint, with: nil) {
+                return actionView
+            }
+        }
+        return nil
+    }
+
+    public func highlightActionView(location: CGPoint, fromView: UIView) {
+        guard let touchedView = actionView(touchedBy: location, fromView: fromView) else {
+            unhighlightAllActionViews()
+            return
+        }
+        touchedView.isHighlighted = true
+        self.actionViews.filter { $0 != touchedView }.forEach {  $0.isHighlighted = false }
+    }
+
+    public func selectActionView(location: CGPoint, fromView: UIView) {
+        guard let selectedView: MenuActionView = actionView(touchedBy: location, fromView: fromView) else {
+            unhighlightAllActionViews()
+            return
+        }
+        selectedView.isHighlighted = true
+        self.actionViews.filter { $0 != selectedView }.forEach {  $0.isHighlighted = false }
+        delegate?.actionSheet(self, didSelectAction: selectedView.action)
+    }
+
     public func addAction(_ action: MenuAction) {
+        actions.append(action)
+
         let actionView = MenuActionView(action: action)
         actionView.delegate = self
-        actions.append(action)
+        actionViews.append(actionView)
+
         self.actionStackView.addArrangedSubview(actionView)
     }
 
@@ -337,7 +399,7 @@ protocol MenuActionViewDelegate: class {
 
 class MenuActionView: UIButton {
     public weak var delegate: MenuActionViewDelegate?
-    private let action: MenuAction
+    public let action: MenuAction
 
     required init(action: MenuAction) {
         self.action = action
@@ -378,14 +440,16 @@ class MenuActionView: UIButton {
         contentRow.isUserInteractionEnabled = false
 
         self.addSubview(contentRow)
-        contentRow.ows_autoPinToSuperviewMargins()
+        contentRow.autoPinEdgesToSuperviewMargins()
         contentRow.autoSetDimension(.height, toSize: 56, relation: .greaterThanOrEqual)
 
-        self.addTarget(self, action: #selector(didPress(sender:)), for: .touchUpInside)
+        self.isUserInteractionEnabled = false
+//        self.addTarget(self, action: #selector(didPress(sender:)), for: .touchUpInside)
     }
 
     override var isHighlighted: Bool {
         didSet {
+            Logger.debug("\(logTag) in \(#function) \(oldValue) -> \(isHighlighted)")
             self.backgroundColor = isHighlighted ? UIColor.ows_light10 : UIColor.white
         }
     }
