@@ -299,8 +299,10 @@ class MenuActionSheetView: UIView, MenuActionViewDelegate {
 
         self.clipsToBounds = true
 
-        let panGesture: UIPanGestureRecognizer = UIPanGestureRecognizer(target: self, action: #selector(didPan(gesture:)))
-        self.addGestureRecognizer(panGesture)
+        let touchGesture = UILongPressGestureRecognizer(target: self, action: #selector(didTouch(gesture:)))
+        touchGesture.minimumPressDuration = 0.0
+        touchGesture.allowableMovement = CGFloat.greatestFiniteMagnitude
+        self.addGestureRecognizer(touchGesture)
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -308,7 +310,7 @@ class MenuActionSheetView: UIView, MenuActionViewDelegate {
     }
 
     @objc
-    public func didPan(gesture: UIPanGestureRecognizer) {
+    public func didTouch(gesture: UIGestureRecognizer) {
         switch gesture.state {
         case .possible:
             break
@@ -444,7 +446,6 @@ class MenuActionView: UIButton {
         contentRow.autoSetDimension(.height, toSize: 56, relation: .greaterThanOrEqual)
 
         self.isUserInteractionEnabled = false
-//        self.addTarget(self, action: #selector(didPress(sender:)), for: .touchUpInside)
     }
 
     override var isHighlighted: Bool {
