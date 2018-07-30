@@ -71,10 +71,6 @@ class MenuActionsViewController: UIViewController, MenuActionSheetDelegate {
 
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(didTapBackground))
         self.view.addGestureRecognizer(tapGesture)
-
-        let swipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(didSwipeBackground))
-        swipeGesture.direction = .down
-        self.view.addGestureRecognizer(swipeGesture)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -246,11 +242,6 @@ class MenuActionsViewController: UIViewController, MenuActionSheetDelegate {
 
     @objc
     func didTapBackground() {
-        animateDismiss(action: nil)
-    }
-
-    @objc
-    func didSwipeBackground(gesture: UISwipeGestureRecognizer) {
         animateDismiss(action: nil)
     }
 
