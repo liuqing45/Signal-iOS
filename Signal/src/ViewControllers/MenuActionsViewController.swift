@@ -328,47 +328,6 @@ class MenuActionSheetView: UIView, MenuActionViewDelegate {
         }
     }
 
-    public func unhighlightAllActionViews() {
-        for actionView in actionViews {
-            actionView.isHighlighted = false
-        }
-    }
-
-    public func actionView(touchedBy touchPoint: CGPoint, fromView: UIView) -> MenuActionView? {
-        for actionView in actionViews {
-            let convertedPoint = actionView.convert(touchPoint, from: fromView)
-            if actionView.point(inside: convertedPoint, with: nil) {
-                return actionView
-            }
-        }
-        return nil
-    }
-
-    public func highlightActionView(location: CGPoint, fromView: UIView) {
-        guard let touchedView = actionView(touchedBy: location, fromView: fromView) else {
-            unhighlightAllActionViews()
-            return
-        }
-
-        if hasEverHighlightedAction, !touchedView.isHighlighted {
-            self.hapticFeedback.selectionChanged()
-        }
-        touchedView.isHighlighted = true
-        hasEverHighlightedAction = true
-
-        self.actionViews.filter { $0 != touchedView }.forEach {  $0.isHighlighted = false }
-    }
-
-    public func selectActionView(location: CGPoint, fromView: UIView) {
-        guard let selectedView: MenuActionView = actionView(touchedBy: location, fromView: fromView) else {
-            unhighlightAllActionViews()
-            return
-        }
-        selectedView.isHighlighted = true
-        self.actionViews.filter { $0 != selectedView }.forEach {  $0.isHighlighted = false }
-        delegate?.actionSheet(self, didSelectAction: selectedView.action)
-    }
-
     public func addAction(_ action: MenuAction) {
         actions.append(action)
 
@@ -393,6 +352,47 @@ class MenuActionSheetView: UIView, MenuActionViewDelegate {
         let mask = CAShapeLayer()
         mask.path = path.cgPath
         self.layer.mask = mask
+    }
+
+    private func unhighlightAllActionViews() {
+        for actionView in actionViews {
+            actionView.isHighlighted = false
+        }
+    }
+
+    private func actionView(touchedBy touchPoint: CGPoint, fromView: UIView) -> MenuActionView? {
+        for actionView in actionViews {
+            let convertedPoint = actionView.convert(touchPoint, from: fromView)
+            if actionView.point(inside: convertedPoint, with: nil) {
+                return actionView
+            }
+        }
+        return nil
+    }
+
+    private func highlightActionView(location: CGPoint, fromView: UIView) {
+        guard let touchedView = actionView(touchedBy: location, fromView: fromView) else {
+            unhighlightAllActionViews()
+            return
+        }
+
+        if hasEverHighlightedAction, !touchedView.isHighlighted {
+            self.hapticFeedback.selectionChanged()
+        }
+        touchedView.isHighlighted = true
+        hasEverHighlightedAction = true
+
+        self.actionViews.filter { $0 != touchedView }.forEach {  $0.isHighlighted = false }
+    }
+
+    private func selectActionView(location: CGPoint, fromView: UIView) {
+        guard let selectedView: MenuActionView = actionView(touchedBy: location, fromView: fromView) else {
+            unhighlightAllActionViews()
+            return
+        }
+        selectedView.isHighlighted = true
+        self.actionViews.filter { $0 != selectedView }.forEach {  $0.isHighlighted = false }
+        delegate?.actionSheet(self, didSelectAction: selectedView.action)
     }
 }
 
