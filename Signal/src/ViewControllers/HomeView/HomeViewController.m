@@ -40,6 +40,11 @@ typedef NS_ENUM(NSInteger, HomeViewMode) {
     HomeViewMode_Inbox,
 };
 
+typedef NS_ENUM(NSInteger, HomeViewControllerSection) {
+    HomeViewControllerSectionReminders,
+    HomeViewControllerSectionConversations,
+};
+
 NSString *const kArchivedConversationsReuseIdentifier = @"kArchivedConversationsReuseIdentifier";
 
 @interface HomeViewController () <UITableViewDelegate,
@@ -76,6 +81,8 @@ NSString *const kArchivedConversationsReuseIdentifier = @"kArchivedConversations
 
 // Views
 
+@property (nonatomic, readonly) UIStackView *reminderStackView;
+@property (nonatomic, readonly) UITableViewCell *reminderViewCell;
 @property (nonatomic, readonly) UIView *deregisteredView;
 @property (nonatomic, readonly) UIView *outageView;
 @property (nonatomic, readonly) UIView *archiveReminderView;
@@ -245,12 +252,17 @@ NSString *const kArchivedConversationsReuseIdentifier = @"kArchivedConversations
     }
 
     UIStackView *reminderStackView = [UIStackView new];
+    _reminderStackView = reminderStackView;
     reminderStackView.axis = UILayoutConstraintAxisVertical;
     reminderStackView.spacing = 0;
-    [self.view addSubview:reminderStackView];
-    [reminderStackView autoPinWidthToSuperview];
-    [reminderStackView autoPinToTopLayoutGuideOfViewController:self withInset:0];
-
+//    [self.view addSubview:reminderStackView];
+//    [reminderStackView autoPinWidthToSuperview];
+//    [reminderStackView autoPinToTopLayoutGuideOfViewController:self withInset:0];
+//
+    _reminderViewCell = [UITableViewCell new];
+    [self.reminderViewCell.contentView addSubview:reminderStackView];
+    [reminderStackView autoPinEdgesToSuperviewEdges];
+    
     // Fixes ambiguous height of an empty stack view pinned above a scroll view on iOS10.
     // Without this users would sometimes see the empty stackview take up most of their screen.
     [NSLayoutConstraint autoSetPriority:UILayoutPriorityDefaultLow
@@ -300,11 +312,8 @@ NSString *const kArchivedConversationsReuseIdentifier = @"kArchivedConversations
     [self.tableView registerClass:[HomeViewCell class] forCellReuseIdentifier:HomeViewCell.cellReuseIdentifier];
     [self.tableView registerClass:[UITableViewCell class] forCellReuseIdentifier:kArchivedConversationsReuseIdentifier];
     [self.view addSubview:self.tableView];
-    [self.tableView autoPinWidthToSuperview];
-    [self.tableView autoPinEdgeToSuperviewEdge:ALEdgeBottom];
-
-    // TODO - have content scroll behind navbar will require changing this.
-    [self.tableView autoPinEdge:ALEdgeTop toEdge:ALEdgeBottom ofView:reminderStackView];
+    [self.tableView autoPinEdgesToSuperviewEdges];
+    
     self.tableView.rowHeight = UITableViewAutomaticDimension;
     self.tableView.estimatedRowHeight = 60;
 
@@ -734,14 +743,39 @@ NSString *const kArchivedConversationsReuseIdentifier = @"kArchivedConversations
     return (NSInteger)[self.threadMappings numberOfSections];
 }
 
+- (BOOL)hasVisibleReminders
+{
+    for (UIView *reminderView in self.reminderStackView.subviews) {
+        if (!reminderView.isHidden) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
-    NSInteger result = (NSInteger)[self.threadMappings numberOfItemsInSection:(NSUInteger)section];
-    if (self.hasArchivedThreadsRow) {
-        // Add the "archived conversations" row.
-        result++;
+    switch (section) {
+        case HomeViewControllerSectionReminders: {
+            return self.hasVisibleReminders ? 1 : 0;
+            break;
+        }
+        case HomeViewControllerSectionConversations: {
+            OWSAssert(HomeViewControllerSectionReminders == 0);
+            NSInteger result = (NSInteger)[self.threadMappings numberOfItemsInSection:(NSUInteger)section];
+            if (self.hasArchivedThreadsRow) {
+                // Add the "archived conversations" row.
+                result++;
+            }
+            
+            return result;
+            break;
+        }
+        default: {
+            OWSFail(@"%@ failure: unexpected section: %lu", self.logTag, (unsigned long)section);
+            break;
+        }
     }
-    return result;
 }
 
 - (BOOL)isIndexPathForArchivedConversations:(NSIndexPath *)indexPath
@@ -749,17 +783,18 @@ NSString *const kArchivedConversationsReuseIdentifier = @"kArchivedConversations
     if (self.homeViewMode != HomeViewMode_Inbox) {
         return NO;
     }
-    if (indexPath.section != 0) {
+    if (indexPath.section != HomeViewControllerSectionConversations) {
         return NO;
     }
-    NSInteger cellCount = (NSInteger)[self.threadMappings numberOfItemsInSection:(NSUInteger)0];
+    NSInteger cellCount = (NSInteger)[self.threadMappings numberOfItemsInSection:HomeViewControllerSectionConversations];
     return indexPath.row == cellCount;
 }
 
 - (ThreadViewModel *)threadViewModelForIndexPath:(NSIndexPath *)indexPath
 {
     TSThread *threadRecord = [self threadForIndexPath:indexPath];
-
+    OWSAssert(threadRecord);
+    
     ThreadViewModel *_Nullable cachedThreadViewModel = [self.threadViewModelCache objectForKey:threadRecord.uniqueId];
     if (cachedThreadViewModel) {
         return cachedThreadViewModel;
@@ -775,10 +810,23 @@ NSString *const kArchivedConversationsReuseIdentifier = @"kArchivedConversations
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    if ([self isIndexPathForArchivedConversations:indexPath]) {
-        return [self cellForArchivedConversationsRow:tableView];
-    } else {
-        return [self tableView:tableView cellForConversationAtIndexPath:indexPath];
+    HomeViewControllerSection section = (HomeViewControllerSection)indexPath.section;
+    switch (section) {
+        case HomeViewControllerSectionReminders: {
+            return self.reminderViewCell;
+        }
+        case HomeViewControllerSectionConversations: {
+            OWSAssert(HomeViewControllerSectionReminders == 0);
+            if ([self isIndexPathForArchivedConversations:indexPath]) {
+                return [self cellForArchivedConversationsRow:tableView];
+            } else {
+                return [self tableView:tableView cellForConversationAtIndexPath:indexPath];
+            }
+        }
+        default: {
+            OWSFail(@"%@ failure: unexpected section: %lu", self.logTag, (unsigned long)section);
+            break;
+        }
     }
 }
 
@@ -1218,7 +1266,7 @@ NSString *const kArchivedConversationsReuseIdentifier = @"kArchivedConversations
 {
     OWSAssertIsOnMainThread();
 
-    self.threadMappings = [[YapDatabaseViewMappings alloc] initWithGroups:@[ self.currentGrouping ]
+    self.threadMappings = [[YapDatabaseViewMappings alloc] initWithGroups:@[ @"fakeGroupForReminder", self.currentGrouping ]
                                                                      view:TSThreadDatabaseViewExtensionName];
     [self.threadMappings setIsReversed:YES forGroup:self.currentGrouping];
 
